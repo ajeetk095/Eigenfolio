@@ -42,11 +42,19 @@ def metric_tooltip(name: str, definition: str, why: str, how: str,
 
 
 def data_freshness_bar(result) -> None:
-    st.caption(f"Data source: {result['data_source']} · "
-               f"Retrieved: {result['fetched_at']} (UTC) · "
-               f"Coverage: {result['validation']['first_date']} → "
-               f"{result['validation']['last_date']} "
-               f"({result['validation']['n_days']} trading days). "
+    """Show data provenance for model or history payloads without brittle key errors.
+
+    Model results use `data_source` and `validation`; raw loader payloads use
+    `source`. Accept both schemas so the dashboard remains robust across callers.
+    """
+    source = result.get('data_source') or result.get('source') or 'Unknown source'
+    fetched_at = result.get('fetched_at') or 'unknown'
+    validation = result.get('validation') or {}
+    first_date = validation.get('first_date', '—')
+    last_date = validation.get('last_date', '—')
+    n_days = validation.get('n_days', '—')
+    st.caption(f'Data source: {source} · Retrieved: {fetched_at} (UTC) · '
+               f'Coverage: {first_date} → {last_date} ({n_days} trading days). '
                'Delayed / end-of-day data — not tick-by-tick real-time.')
 
 
