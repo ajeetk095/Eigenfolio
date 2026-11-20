@@ -1,56 +1,93 @@
-"""Page 7 — Methodology and links to the original research materials."""
+"""Methodology page with report, notebook, and project instructions available in-app."""
 from __future__ import annotations
 
+import base64
+import json
+from pathlib import Path
+
 import streamlit as st
+import streamlit.components.v1 as components
 
 from src import config
 from src.ui_utils import disclaimer_box
 
-st.set_page_config(page_title='Methodology', page_icon='📚', layout='wide')
+ROOT = Path(__file__).resolve().parents[1]
+REPORT_PATH = ROOT / 'reports' / 'GWP3_Technical_Report.pdf'
+EXPLANATION_PDF = ROOT / 'reports' / 'GWP3_Project_Explanation.pdf'
+NOTEBOOK_PATH = ROOT / 'notebooks' / 'GWP3_Complete_Analysis.ipynb'
+INSTRUCTIONS_PATH = ROOT / 'research' / 'PROJECT_INSTRUCTIONS.md'
+
+st.set_page_config(page_title='Methodology & Research', page_icon='📚', layout='wide')
 st.title('📚 Methodology & Project Research')
-st.caption('Plain-language walkthrough, with the original project materials linked below. '
-           'Published results are clearly separated from current market monitoring.')
+st.caption('Browse the project documents in this app. The original academic windows '
+           'are preserved separately from the live-market context.')
 
-st.header('Research materials')
-st.markdown('The repository already contains the project report PDFs and original analysis notebook. '
-            'Open or download them using these source links:')
-repo = 'https://github.com/ajeetk095/Eigenfolio'
-materials = [
-    ('Technical report (PDF)', f'{repo}/blob/main/reports/GWP3_Technical_Report.pdf'),
-    ('Project explanation (PDF)', f'{repo}/blob/main/reports/GWP3_Project_Explanation.pdf'),
-    ('Project explanation (Markdown)', f'{repo}/blob/main/reports/PROJECT_EXPLANATION.md'),
-    ('Original complete analysis notebook', f'{repo}/blob/main/notebooks/GWP3_Complete_Analysis.ipynb'),
-    ('User guide', f'{repo}/blob/main/reports/USER_GUIDE.md'),
-    ('Deployment guide', f'{repo}/blob/main/reports/DEPLOYMENT_GUIDE.md'),
-]
-for label, url in materials:
-    st.markdown(f'- [{label}]({url})')
-st.info('The repository does not currently contain a separate assignment-instructions file. '
-        'To publish the official instructions, add the authorized document under '
-        '`research/assignment/` and link it here; do not redistribute restricted course material.')
+st.header('Project documents')
+doc_tabs = st.tabs(['📄 Technical report', '📘 Project explanation', '📓 Original notebook', '🧭 Project instructions'])
 
-st.header('Assignment and scope')
+with doc_tabs[0]:
+    if REPORT_PATH.is_file():
+        report_bytes = REPORT_PATH.read_bytes()
+        st.download_button('Download technical report (PDF)', report_bytes,
+                           file_name=REPORT_PATH.name, mime='application/pdf', key='download_technical_report')
+        encoded = base64.b64encode(report_bytes).decode('ascii')
+        components.html(
+            f'<iframe src="data:application/pdf;base64,{encoded}" width="100%" height="760" '
+            'style="border:1px solid #d5dbe3;border-radius:8px"></iframe>',
+            height=780, scrolling=True)
+    else:
+        st.warning('Technical report PDF is not present in this deployment package.')
+with doc_tabs[1]:
+    if EXPLANATION_PDF.is_file():
+        explanation_bytes = EXPLANATION_PDF.read_bytes()
+        st.download_button('Download project explanation (PDF)', explanation_bytes,
+                           file_name=EXPLANATION_PDF.name, mime='application/pdf', key='download_explanation_pdf')
+        encoded = base64.b64encode(explanation_bytes).decode('ascii')
+        components.html(
+            f'<iframe src="data:application/pdf;base64,{encoded}" width="100%" height="700" '
+            'style="border:1px solid #d5dbe3;border-radius:8px"></iframe>',
+            height=720, scrolling=True)
+    else:
+        st.warning('Project explanation PDF is not present in this deployment package.')
+with doc_tabs[2]:
+    if NOTEBOOK_PATH.is_file():
+        notebook_bytes = NOTEBOOK_PATH.read_bytes()
+        st.download_button('Download original Jupyter notebook', notebook_bytes,
+                           file_name=NOTEBOOK_PATH.name, mime='application/x-ipynb+json', key='download_original_notebook')
+        try:
+            notebook = json.loads(notebook_bytes)
+            code_cells = 0
+            for number, cell in enumerate(notebook.get('cells', []), start=1):
+                source = ''.join(cell.get('source', []))
+                if not source.strip():
+                    continue
+                if cell.get('cell_type') == 'markdown':
+                    with st.expander(f'Notebook cell {number} · Markdown'):
+                        st.markdown(source)
+                else:
+                    code_cells += 1
+                    with st.expander(f'Notebook cell {number} · Code'):
+                        st.code(source, language='python')
+            st.caption(f'Displaying non-empty notebook cells in original order ({code_cells} code cells).')
+        except (json.JSONDecodeError, OSError):
+            st.error('The notebook could not be parsed for display; use the download button to open the original file.')
+    else:
+        st.warning('Original analysis notebook is not present in this deployment package.')
+with doc_tabs[3]:
+    if INSTRUCTIONS_PATH.is_file():
+        st.markdown(INSTRUCTIONS_PATH.read_text(encoding='utf-8'))
+        st.download_button('Download project instructions', INSTRUCTIONS_PATH.read_bytes(),
+                           file_name=INSTRUCTIONS_PATH.name, mime='text/markdown', key='download_project_instructions')
+    else:
+        st.info('No project instructions document was bundled with this release.')
+
+st.header('Academic scope and reproducibility')
 st.markdown(f'''
-The original GWP3 exercise uses at least 10 assets and daily prices. Training is
-**{config.TRAIN_START} to {config.TRAIN_END}**; the required out-of-sample window is
-**{config.TEST_START} to {config.TEST_END}**. The baseline uses maximum-Sharpe mean-variance
-optimization, long-only positions, and a 15% per-asset cap. The assignment-period
-analysis remains fixed so its results stay reproducible.
-
-The separate live-market views can display history from **2024-01-02 through the
-latest available provider date**. Applying fixed GWP3 weights over that period is
-historical context only; it is not a refit, forecast, or real-time trading signal.
-''')
-
-st.header('Model methodology')
-st.markdown('''
-1. **Baseline portfolio:** maximum-Sharpe mean-variance optimization under the assignment constraints.
-2. **Covariance denoising:** Ledoit–Wolf shrinkage stabilizes covariance estimates.
-3. **Diversification cross-check:** K-Medoids clusters assets by correlation-derived distance.
-4. **Combination:** shrinkage, clustering, and portfolio optimization are applied in sequence.
-5. **Evaluation:** fixed July 2025 out-of-sample test and a separate walk-forward backtest.
-
-All market data is delayed/end-of-day and provider availability is not guaranteed. Missing data is not fabricated.
+The original GWP3 training period is **{config.TRAIN_START} to {config.TRAIN_END}**;
+the required out-of-sample period is **{config.TEST_START} to {config.TEST_END}**.
+Those fixed dates and constraints are retained for reproducibility. The separate
+market dashboard may show history from 2024-01-02 through the latest provider date;
+that context is not a refit or forecast.
 ''')
 
 st.header('Published report results')
@@ -66,13 +103,6 @@ st.dataframe(__import__('pandas').DataFrame(rows).style.format({
     'Train Sharpe': '{:.3f}', 'Train annual return': '{:.2%}',
     'July 2025 OOS Sharpe': '{:.3f}', 'July 2025 OOS annual return': '{:.2%}',
     'OOS max drawdown': '{:.2%}'}), width='stretch', hide_index=True)
-st.caption('Static figures transcribed from the submitted report; not live calculations.')
+st.caption('Published static figures from the report; distinct from current market calculations.')
 
-st.header('Assumptions and limitations')
-st.markdown('''
-- Historical averages do not predict future returns.
-- The required out-of-sample test is only one month and one market regime.
-- Taxes, slippage, transaction costs, and turnover are not modeled.
-- Yahoo Finance is a best-effort data source; prices may be delayed or unavailable.
-''')
 disclaimer_box()
