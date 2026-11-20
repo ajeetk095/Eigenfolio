@@ -58,9 +58,25 @@ def disclaimer_box() -> None:
 
 
 def refresh_button(container=None) -> bool:
+    """Offer a user-triggered cache bypass and full data/model refresh.
+
+    Yahoo Finance responses normally remain cached for two hours. On click, clear
+    the Streamlit model-result cache; each page then passes the returned True to
+    its data fetchers so their provider caches are bypassed too.
+    """
     holder = container if container is not None else st
-    return holder.button('🔄 Refresh market data',
-                         help='Re-download prices from Yahoo Finance and rerun the model.')
+    clicked = holder.button(
+        '🔄 Sync latest market data now',
+        help='Bypass the two-hour Yahoo Finance cache and fetch again now. '
+             'Data availability and quote delay depend on Yahoo Finance.',
+        type='primary',
+    )
+    holder.caption('Market data syncs from Yahoo Finance on a two-hour cache cycle. '
+                   'Use this button to request a fresh download immediately; quotes '
+                   'may still be delayed or unavailable.')
+    if clicked:
+        get_result.clear()
+    return clicked
 
 
 def constraint_check_pills(result) -> None:
