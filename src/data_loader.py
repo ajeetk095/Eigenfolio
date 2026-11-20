@@ -4,6 +4,8 @@ Live + historical financial data integration (Environment B data feed).
 Yahoo Finance is a best-effort public source, not a guaranteed uptime API.
 The loader tolerates yfinance's changing MultiIndex layouts, retries missing
 symbols individually, and never invents prices for unavailable observations.
+Market responses are cached for two hours to limit requests and keep the app
+responsive; pressing Refresh bypasses the cache.
 """
 from __future__ import annotations
 
@@ -17,8 +19,8 @@ import pandas as pd
 from .config import DATA_SOURCE_LABEL
 
 _CACHE: dict = {}
-CACHE_TTL_SECONDS = 600          # 10-minute TTL for live quotes
-HIST_CACHE_TTL_SECONDS = 3600    # 1-hour TTL for historical windows
+CACHE_TTL_SECONDS = 7200          # 2-hour quote sync/cache window
+HIST_CACHE_TTL_SECONDS = 7200     # 2-hour historical price sync/cache window
 
 
 class DataFetchError(RuntimeError):
@@ -54,7 +56,6 @@ def _extract_close(raw: pd.DataFrame | None, tickers: list[str]) -> pd.DataFrame
         if isinstance(close, pd.Series):
             close = close.to_frame()
         if close is None:
-            # Defensive fallback for MultiIndex columns with unusual level names.
             selected = {}
             for ticker in tickers:
                 for col in raw.columns:
@@ -68,7 +69,6 @@ def _extract_close(raw: pd.DataFrame | None, tickers: list[str]) -> pd.DataFrame
     elif len(tickers) == 1 and raw.shape[1] == 1:
         close = raw.rename(columns={raw.columns[0]: tickers[0]})
     else:
-        # Accept an already extracted ticker-indexed close frame.
         close = raw.reindex(columns=tickers)
 
     if close is None:
@@ -76,7 +76,6 @@ def _extract_close(raw: pd.DataFrame | None, tickers: list[str]) -> pd.DataFrame
     if isinstance(close, pd.Series):
         close = close.to_frame(name=tickers[0])
     close.columns = [str(c) for c in close.columns]
-    # A single-symbol download can have a plain Close column after extraction.
     if len(tickers) == 1 and tickers[0] not in close.columns and close.shape[1] == 1:
         close.columns = tickers
     return close.reindex(columns=tickers).apply(pd.to_numeric, errors='coerce')
@@ -114,10 +113,10 @@ def fetch_price_history(tickers: list[str], start: str, end: str,
                         force_refresh: bool = False) -> dict:
     """Download adjusted daily closes; ``end`` is treated as inclusive.
 
+    Results are cached for two hours. ``force_refresh=True`` bypasses the cache.
     Returns ``{'prices': DataFrame, 'fetched_at': ISO timestamp, 'source': label}``.
-    Raises DataFetchError with actionable context if the provider has no usable data.
     """
-    key = 'hist-v2:' + hashlib.md5(
+    key = 'hist-v3:' + hashlib.md5(
         f"{sorted(tickers)}|{start}|{end}".encode(),
         usedforsecurity=False).hexdigest()
     if not force_refresh:
@@ -142,7 +141,7 @@ def fetch_price_history(tickers: list[str], start: str, end: str,
         prices = prices.reindex(columns=tickers)
     except DataFetchError:
         raise
-    except Exception as exc:                       # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
         raise DataFetchError(
             f'Market-data download failed ({type(exc).__name__}). '
             'Yahoo Finance may be temporarily unavailable — please retry.') from None
@@ -158,8 +157,12 @@ def fetch_price_history(tickers: list[str], start: str, end: str,
 
 def fetch_latest_quotes(tickers: list[str],
                         force_refresh: bool = False) -> dict:
-    """Return latest available delayed/end-of-day quotes from recent price history."""
-    key = 'quotes-v2:' + hashlib.md5(str(sorted(tickers)).encode(),
+    """Return latest available delayed/end-of-day quotes from recent price history.
+
+    Quotes are cached for two hours unless force_refresh is requested. Yahoo
+    Finance does not guarantee real-time data; timestamps describe retrieval time.
+    """
+    key = 'quotes-v3:' + hashlib.md5(str(sorted(tickers)).encode(),
                                     usedforsecurity=False).hexdigest()
     if not force_refresh:
         cached = _cache_get(key, CACHE_TTL_SECONDS)
@@ -168,7 +171,7 @@ def fetch_latest_quotes(tickers: list[str],
 
     try:
         import yfinance as yf
-    except Exception:                              # noqa: BLE001
+    except Exception:  # noqa: BLE001
         raise DataFetchError('yfinance is not installed in this environment.') from None
 
     try:
@@ -184,7 +187,6 @@ def fetch_latest_quotes(tickers: list[str],
         last = float(series.iloc[-1]) if len(series) else None
         prev = float(series.iloc[-2]) if len(series) > 1 else None
 
-        # fast_info provides a useful fallback where the historical endpoint omitted a symbol.
         if last is None:
             try:
                 info = yf.Ticker(ticker).fast_info
@@ -207,7 +209,7 @@ def fetch_latest_quotes(tickers: list[str],
     if not rows:
         raise DataFetchError(
             'Latest quotes are temporarily unavailable from Yahoo Finance. '
-            'Historical prices may still be available; retry in a few minutes.')
+            'Historical prices may still be available; retry after the cache interval.')
 
     payload = {
         'quotes': pd.DataFrame(rows),
