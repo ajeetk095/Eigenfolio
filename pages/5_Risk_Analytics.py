@@ -70,7 +70,7 @@ metric_tooltip(
 st.subheader('Weight vs. risk contribution')
 rc = risk_contributions(w, S)
 st.plotly_chart(viz.risk_contribution_chart(rc, pd.Series(w, index=config.TICKERS)),
-                use_container_width=True)
+                width='stretch')
 c1, c2, c3 = st.columns(3)
 c1.metric('Effective positions (1/HHI)', f'{effective_n(w):.1f}')
 c2.metric('Top risk contributor', f'{rc.idxmax()} ({rc.max() * 100:.0f}%)')
@@ -121,7 +121,7 @@ for i, t in enumerate(tickers):
 sens = pd.DataFrame(sens_rows).sort_values('Sharpe')
 st.dataframe(sens.style.format({
     'Ann. return': '{:.2%}', 'Ann. vol': '{:.2%}',
-    'Sharpe': '{:.3f}', 'Max DD': '{:.2%}'}), use_container_width=True)
+    'Sharpe': '{:.3f}', 'Max DD': '{:.2%}'}), width='stretch')
 st.caption('Reading guide: a large Sharpe drop when removing an asset flags '
            'heavy dependence on that single name — a concentration signal.')
 
@@ -133,6 +133,6 @@ with a1:
 with a2:
     st.plotly_chart(viz.correlation_heatmap(
         ret_frame.corr(), 'Correlation matrix (training)'),
-        use_container_width=True)
+        width='stretch')
 
 disclaimer_box()

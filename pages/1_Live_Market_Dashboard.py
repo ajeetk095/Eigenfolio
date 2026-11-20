@@ -42,7 +42,7 @@ st.subheader('Latest available prices')
 q_disp = q.copy()
 q_disp['Last Price'] = q_disp['Last Price'].map('{:,.2f}'.format)
 q_disp['Change %'] = q_disp['Change %'].map(lambda x: f'{x:+.2f}%' if x == x else '—')
-st.dataframe(q_disp, use_container_width=True, hide_index=True)
+st.dataframe(q_disp, width='stretch', hide_index=True)
 
 st.caption(f"Source: {quotes_payload['source']} · Snapshot: "
            f"{quotes_payload['fetched_at']} UTC. Prices are delayed/end-of-day; "
@@ -60,7 +60,7 @@ if not sel:
     st.stop()
 
 view = prices.loc[(prices.index >= str(rng[0])) & (prices.index <= str(rng[1])), sel]
-st.plotly_chart(viz.price_chart(view, sel), use_container_width=True)
+st.plotly_chart(viz.price_chart(view, sel), width='stretch')
 
 rets = compute_returns(view)['log']
 c1, c2 = st.columns(2)
@@ -70,11 +70,11 @@ with c2:
     ann_vol = rets.std() * (252 ** 0.5)
     st.write('**Annualised volatility (selected window)**')
     st.dataframe(ann_vol.map('{:.1%}'.format).rename('Ann. Vol').to_frame().T,
-                 use_container_width=True)
+                 width='stretch')
 
 st.plotly_chart(viz.correlation_heatmap(rets.corr(),
                                         'Correlation — selected window'),
-                use_container_width=True)
+                width='stretch')
 
 # trend summary
 st.subheader('Market trend summary')
@@ -89,6 +89,6 @@ trend['Trend'] = trend['Window change %'].map(
 st.dataframe(trend.style.format({
     'Ann. return (window)': '{:.1%}', 'Ann. volatility': '{:.1%}',
     'Latest price': '{:,.2f}', 'Window change %': '{:+.1f}'}),
-    use_container_width=True)
+    width='stretch')
 
 disclaimer_box()

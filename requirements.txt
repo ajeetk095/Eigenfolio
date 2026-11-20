@@ -1,13 +1,17 @@
-# Core scientific stack (pinned, tested together on Python 3.10–3.12)
-numpy==1.26.4
-pandas==2.2.2
-scipy==1.11.4
-scikit-learn==1.4.2
+# Core scientific stack — flexible floors so uv/pip resolves pre-built
+# wheels for ANY Streamlit Cloud Python (3.12, 3.13 or 3.14).
+# (Pinned 2024-era versions had no cp314 wheels, which broke the deploy.)
+numpy>=2.0,<3
+pandas>=2.2,<4
+scipy>=1.13
+scikit-learn>=1.5
 
 # App framework & visualization
-streamlit==1.35.0
-plotly==5.22.0
+streamlit>=1.39
+plotly>=5.24
 
-# Financial data & optimization
-yfinance==0.2.54
-PyPortfolioOpt==1.5.5
+# Financial data & optimization (pure-Python package; pulls a compatible cvxpy)
+# cvxpy floor 1.9: first line with cp314 manylinux wheels (1.6.x would source-build).
+cvxpy>=1.9,<2
+PyPortfolioOpt>=1.5.5
+yfinance>=0.2.54

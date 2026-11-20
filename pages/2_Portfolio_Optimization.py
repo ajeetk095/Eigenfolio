@@ -52,7 +52,7 @@ for tab, m in zip(tabs, methods):
         })
         df = df.sort_values('Weight', ascending=False).reset_index(drop=True)
         df['Weight'] = df['Weight'].map('{:.2%}'.format)
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, width='stretch', hide_index=True)
         check = result['constraint_checks'][m]
         st.caption(f"Sum of weights = {check['sum']:.6f} · max weight = "
                    f"{check['max_weight'] * 100:.2f}% · shorts = "
@@ -65,20 +65,20 @@ for tab, m in zip(tabs, methods):
         k3.metric('Sharpe', f"{mt['Sharpe']:.3f}")
         k4.metric('Sortino', f"{mt['Sortino']:.3f}")
         st.plotly_chart(viz.allocation_pie(
-            wd, f'{labels[m][0]} — allocation'), use_container_width=True)
+            wd, f'{labels[m][0]} — allocation'), width='stretch')
 
 st.markdown('---')
 st.subheader('Risk–return map & efficient frontier')
 st.plotly_chart(viz.frontier_chart(result['frontier'], result['weights'],
                                    result['mu'], result['S_sample']),
-                use_container_width=True)
+                width='stretch')
 st.caption('Stars mark each portfolio; grey dots are individual assets. '
            'Estimates come from the training window and are not forecasts.')
 
 st.subheader('Weights across all methods')
 st.plotly_chart(viz.weights_bar_chart(
     {m: list(result['weights'][m]) for m in methods}, config.TICKERS),
-    use_container_width=True)
+    width='stretch')
 
 st.subheader('Optimization settings (as documented in the GWP3 report)')
 st.markdown(

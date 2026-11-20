@@ -49,11 +49,11 @@ def styled_table(tbl: pd.DataFrame, winners: dict):
 t1, t2 = st.tabs(['🏫 Training period (Jan 2024 – Jun 2025)',
                   '🧪 Out-of-sample test (July 2025)'])
 with t1:
-    st.dataframe(styled_table(train_tbl, winners_train), use_container_width=True)
+    st.dataframe(styled_table(train_tbl, winners_train), width='stretch')
     st.caption('Greenfield estimates: fitted on the same window, so these '
                'numbers are optimistic by construction.')
 with t2:
-    st.dataframe(styled_table(test_tbl, winners_test), use_container_width=True)
+    st.dataframe(styled_table(test_tbl, winners_test), width='stretch')
     st.caption('Required GWP3 test: 21 trading days the model never saw. '
                'The combination portfolio underperformed on return metrics '
                'here in the submitted report — that honest negative result '
@@ -63,10 +63,10 @@ st.markdown('### Winner per metric')
 w1, w2 = st.columns(2)
 with w1:
     st.markdown('**Training**')
-    st.dataframe(pd.DataFrame({'Best method': winners_train}), use_container_width=True)
+    st.dataframe(pd.DataFrame({'Best method': winners_train}), width='stretch')
 with w2:
     st.markdown('**Out-of-sample (July 2025)**')
-    st.dataframe(pd.DataFrame({'Best method': winners_test}), use_container_width=True)
+    st.dataframe(pd.DataFrame({'Best method': winners_test}), width='stretch')
 
 # ------------------------------------------------------------- charts -------
 st.markdown('### Cumulative performance')
@@ -76,11 +76,11 @@ ret_frame = result['train_ret'] if period.startswith('Training') else result['te
 cum_map = {name: cumulative_returns(w, ret_frame)
            for name, w in result['weights'].items()}
 st.plotly_chart(viz.cumulative_return_chart(
-    cum_map, f'Cumulative Returns — {period}'), use_container_width=True)
+    cum_map, f'Cumulative Returns — {period}'), width='stretch')
 
 st.plotly_chart(viz.drawdown_chart(
     {name: drawdown_series(w, ret_frame) for name, w in result['weights'].items()}),
-    use_container_width=True)
+    width='stretch')
 
 st.markdown('### Rolling volatility (60-day window, training period)')
 roll_vol = pd.DataFrame({
@@ -105,9 +105,9 @@ else:
               f"± {wdw['Sharpe'].std():.3f}")
     b3.metric('Mean OOS ann. return', f"{wdw['Ann. Return'].mean():.2%}",
               f"± {wdw['Ann. Return'].std():.2%}")
-    st.plotly_chart(viz.rolling_sharpe_chart(wdw), use_container_width=True)
-    st.plotly_chart(viz.backtest_wealth_chart(bt['cum_oos']), use_container_width=True)
-    st.dataframe(wdw.round(4), use_container_width=True)
+    st.plotly_chart(viz.rolling_sharpe_chart(wdw), width='stretch')
+    st.plotly_chart(viz.backtest_wealth_chart(bt['cum_oos']), width='stretch')
+    st.dataframe(wdw.round(4), width='stretch')
 
 st.markdown('### Why combinations can underperform')
 st.markdown("""

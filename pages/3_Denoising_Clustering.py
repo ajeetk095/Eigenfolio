@@ -58,17 +58,17 @@ with st.expander('🔍 What does "condition number" mean?'):
                 'reproducible weights.')
 
 st.plotly_chart(viz.eigenvalue_chart(dn['eig_sample'], dn['eig_lw']),
-                use_container_width=True)
+                width='stretch')
 
 c1, c2 = st.columns(2)
 with c1:
     st.plotly_chart(viz.correlation_heatmap(
         dn['corr_sample'], 'Sample correlation (training period)'),
-        use_container_width=True)
+        width='stretch')
 with c2:
     st.plotly_chart(viz.correlation_heatmap(
         dn['corr_lw'], 'Denoised (LW) correlation'),
-        use_container_width=True)
+        width='stretch')
 
 st.info('**Why identical weights?** In the submitted report, denoising alone '
         'produced the *same* weights as the baseline: with only 4.4% shrinkage, '
@@ -100,10 +100,10 @@ for c, info in sorted(cl['clusters'].items()):
         'Size': len(info['members']),
         'Members': ', '.join(info['members']),
     })
-st.dataframe(cluster_rows, use_container_width=True, hide_index=True)
+st.dataframe(cluster_rows, width='stretch', hide_index=True)
 
 st.plotly_chart(viz.cluster_heatmap(cl['corr'], cl['labels'], config.TICKERS),
-                use_container_width=True)
+                width='stretch')
 
 st.markdown(f"""
 **What the clusters tell us.** In the submitted report, 9 of 12 assets fell
@@ -125,7 +125,7 @@ st.markdown("""
 3. **Optimize** — max-Sharpe MVO at cluster level, expanded to assets, 15% cap
 """)
 st.plotly_chart(viz.cluster_allocation_chart(result['combo']['cluster_alloc']),
-                use_container_width=True)
+                width='stretch')
 st.caption('Report reference: cluster-level MVO assigned 47.1% to C1 '
            '(technology) and 52.9% to C4 (COST), 0% to TSLA and PEP clusters.')
 

@@ -194,7 +194,7 @@ def risk_contribution_chart(rc: pd.Series, weights: pd.Series) -> go.Figure:
 
 
 def cluster_allocation_chart(cluster_alloc: dict) -> go.Figure:
-    fig = go.Figure(go.Pie(labels=list(cluster_alloc), values=list(cluster_alloc.values),
+    fig = go.Figure(go.Pie(labels=list(cluster_alloc), values=list(cluster_alloc.values()),
                            hole=0.42, textinfo='label+percent'))
     fig.update_layout(title='Combination Portfolio — Cluster-Level Allocation',
                       template=APP_TEMPLATE, showlegend=False)

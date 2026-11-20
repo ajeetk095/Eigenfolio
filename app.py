@@ -202,7 +202,7 @@ st.markdown('### Market & portfolio snapshot')
 try:
     prices_recent = result['prices'].tail(252)
     st.plotly_chart(viz.normalized_price_chart(
-        prices_recent, config.TICKERS), use_container_width=True)
+        prices_recent, config.TICKERS), width='stretch')
 except Exception:                              # noqa: BLE001
     pass
 
@@ -210,7 +210,7 @@ st.plotly_chart(viz.cumulative_return_chart(
     {name: cumulative_returns(w, result['test_ret'])
      for name, w in result['weights'].items()},
     'Out-of-Sample Cumulative Returns — July 2025 (required GWP3 test)'),
-    use_container_width=True)
+    width='stretch')
 
 # ----------------------------------------------------------- market pulse ---
 st.markdown('### Market conditions summary')
