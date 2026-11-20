@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Secrets — NEVER commit real credentials
+.env
+*.env
+!.env.example
+.streamlit/secrets.toml
+
+# Data & outputs
+*.csv
+*.pkl
+*.h5
+*.pt
+data/raw/
+!reports/*.pdf
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Testing
+.pytest_cache/
+.ruff_cache/
+bandit_report.json
+pip-audit.json
