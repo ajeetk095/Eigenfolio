@@ -13,7 +13,6 @@ from src.ui_utils import disclaimer_box
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORT_PATH = ROOT / 'reports' / 'GWP3_Technical_Report.pdf'
-EXPLANATION_PDF = ROOT / 'reports' / 'GWP3_Project_Explanation.pdf'
 NOTEBOOK_PATH = ROOT / 'notebooks' / 'GWP3_Complete_Analysis.ipynb'
 INSTRUCTIONS_PATH = ROOT / 'research' / 'PROJECT_INSTRUCTIONS.md'
 
@@ -23,7 +22,7 @@ st.caption('Browse the project documents in this app. The original academic wind
            'are preserved separately from the live-market context.')
 
 st.header('Project documents')
-doc_tabs = st.tabs(['📄 Technical report', '📘 Project explanation', '📓 Original notebook', '🧭 Project instructions'])
+doc_tabs = st.tabs(['📄 Technical report', '📓 Original notebook', '🧭 Project instructions'])
 
 with doc_tabs[0]:
     if REPORT_PATH.is_file():
@@ -37,19 +36,8 @@ with doc_tabs[0]:
             height=780, scrolling=True)
     else:
         st.warning('Technical report PDF is not present in this deployment package.')
+
 with doc_tabs[1]:
-    if EXPLANATION_PDF.is_file():
-        explanation_bytes = EXPLANATION_PDF.read_bytes()
-        st.download_button('Download project explanation (PDF)', explanation_bytes,
-                           file_name=EXPLANATION_PDF.name, mime='application/pdf', key='download_explanation_pdf')
-        encoded = base64.b64encode(explanation_bytes).decode('ascii')
-        components.html(
-            f'<iframe src="data:application/pdf;base64,{encoded}" width="100%" height="700" '
-            'style="border:1px solid #d5dbe3;border-radius:8px"></iframe>',
-            height=720, scrolling=True)
-    else:
-        st.warning('Project explanation PDF is not present in this deployment package.')
-with doc_tabs[2]:
     if NOTEBOOK_PATH.is_file():
         notebook_bytes = NOTEBOOK_PATH.read_bytes()
         st.download_button('Download original Jupyter notebook', notebook_bytes,
@@ -73,7 +61,8 @@ with doc_tabs[2]:
             st.error('The notebook could not be parsed for display; use the download button to open the original file.')
     else:
         st.warning('Original analysis notebook is not present in this deployment package.')
-with doc_tabs[3]:
+
+with doc_tabs[2]:
     if INSTRUCTIONS_PATH.is_file():
         st.markdown(INSTRUCTIONS_PATH.read_text(encoding='utf-8'))
         st.download_button('Download project instructions', INSTRUCTIONS_PATH.read_bytes(),
