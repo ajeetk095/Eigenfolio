@@ -42,9 +42,18 @@ except Exception as exc:                       # noqa: BLE001
     st.warning(f'Latest quotes are temporarily unavailable: {exc} '
                'Historical charts below are still usable.')
 
-data_freshness_bar({**hist, 'validation': {'first_date': str(prices.index[0].date()),
-                                           'last_date': str(prices.index[-1].date()),
-                                           'n_days': len(prices)}})
+# data_freshness_bar expects `data_source`; the downloader returns `source`.
+# Map the name here and keep the helper's model-result contract explicit.
+validation = {
+    'first_date': str(prices.index[0].date()),
+    'last_date': str(prices.index[-1].date()),
+    'n_days': len(prices),
+}
+data_freshness_bar({
+    'data_source': hist.get('source', config.DATA_SOURCE_LABEL),
+    'fetched_at': hist.get('fetched_at', 'unknown'),
+    'validation': validation,
+})
 
 if quotes_payload is not None:
     if quotes_payload['failed_tickers']:
