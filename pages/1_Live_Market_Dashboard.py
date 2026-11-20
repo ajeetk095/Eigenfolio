@@ -1,10 +1,11 @@
 """Page 1 — Live Market Dashboard (Environment B: live monitoring)."""
 from __future__ import annotations
 
+import pandas as pd
 import streamlit as st
 
 from src import config
-from src.data_loader import fetch_latest_quotes, fetch_price_history
+from src.data_loader import DataFetchError, fetch_latest_quotes, fetch_price_history
 from src.data_validation import compute_returns
 from src.ui_utils import data_freshness_bar, disclaimer_box, refresh_button
 from src import visualizations as viz
@@ -12,46 +13,55 @@ from src import visualizations as viz
 st.set_page_config(page_title='Live Market Dashboard', page_icon='🛰️', layout='wide')
 
 st.title('🛰️ Live Market Dashboard')
-st.caption('**Environment B — Live monitoring.** This page uses the latest '
-           'available market data and is kept fully separate from the academic '
-           'GWP3 validation results (Environment A).')
+st.caption('**Environment B — Market monitoring.** Prices are delayed/end-of-day, '
+           'not tick-by-tick real-time, and are separate from academic validation.')
 
 refresh = refresh_button()
 
+# Keep historical exploration available if only the quote endpoint is unavailable.
+try:
+    hist = fetch_price_history(config.TICKERS, config.TRAIN_START,
+                               config.TEST_END, force_refresh=refresh)
+    prices = hist['prices'].reindex(columns=config.TICKERS).ffill().dropna()
+    if prices.empty:
+        raise DataFetchError('The provider returned no complete historical rows.')
+except Exception as exc:                       # noqa: BLE001
+    st.error(f'Historical market data unavailable: {exc}')
+    st.info('Check your connection and retry. Yahoo Finance can temporarily rate-limit '
+            'requests; no synthetic or stale prices are substituted.')
+    st.stop()
+
 try:
     quotes_payload = fetch_latest_quotes(config.TICKERS, force_refresh=refresh)
-    q = quotes_payload['quotes'].set_index('Ticker').loc[config.TICKERS].reset_index()
-    hist = fetch_price_history(config.TICKERS,
-                               config.TRAIN_START, config.TEST_END,
-                               force_refresh=refresh)
-    prices = hist['prices'].reindex(columns=config.TICKERS).ffill().dropna()
+    q = quotes_payload['quotes'].set_index('Ticker').reindex(config.TICKERS)
+    q.index.name = 'Ticker'
+    q = q.reset_index()
 except Exception as exc:                       # noqa: BLE001
-    st.error(f'Market data unavailable: {exc}')
-    st.stop()
+    quotes_payload = None
+    q = pd.DataFrame(columns=['Ticker', 'Last Price', 'Prev Close', 'Change %'])
+    st.warning(f'Latest quotes are temporarily unavailable: {exc} '
+               'Historical charts below are still usable.')
 
 data_freshness_bar({**hist, 'validation': {'first_date': str(prices.index[0].date()),
                                            'last_date': str(prices.index[-1].date()),
                                            'n_days': len(prices)}})
 
-if quotes_payload['failed_tickers']:
-    st.warning(f"No live quote for: {', '.join(quotes_payload['failed_tickers'])} "
-               '(historical data still shown for them).')
+if quotes_payload is not None:
+    if quotes_payload['failed_tickers']:
+        st.warning(f"No latest quote for: {', '.join(quotes_payload['failed_tickers'])} "
+                   '(historical prices are still shown where available).')
+    st.subheader('Latest available prices')
+    q_disp = q.copy()
+    q_disp['Last Price'] = q_disp['Last Price'].map(
+        lambda x: f'{x:,.2f}' if pd.notna(x) else '—')
+    q_disp['Change %'] = q_disp['Change %'].map(
+        lambda x: f'{x:+.2f}%' if pd.notna(x) else '—')
+    st.dataframe(q_disp, width='stretch', hide_index=True)
+    st.caption(f"Source: {quotes_payload['source']} · Snapshot: "
+               f"{quotes_payload['fetched_at']} UTC. Delayed/end-of-day data.")
 
-# ---------------------------------------------------------------- quotes ----
-st.subheader('Latest available prices')
-q_disp = q.copy()
-q_disp['Last Price'] = q_disp['Last Price'].map('{:,.2f}'.format)
-q_disp['Change %'] = q_disp['Change %'].map(lambda x: f'{x:+.2f}%' if x == x else '—')
-st.dataframe(q_disp, width='stretch', hide_index=True)
-
-st.caption(f"Source: {quotes_payload['source']} · Snapshot: "
-           f"{quotes_payload['fetched_at']} UTC. Prices are delayed/end-of-day; "
-           'they are not tick-by-tick real-time quotes.')
-
-# ------------------------------------------------------------- selection ----
 st.subheader('Historical exploration')
-sel = st.multiselect('Select assets', config.TICKERS,
-                     default=config.TICKERS[:6])
+sel = st.multiselect('Select assets', config.TICKERS, default=config.TICKERS[:6])
 date_min, date_max = prices.index[0].date(), prices.index[-1].date()
 rng = st.slider('Date range', min_value=date_min, max_value=date_max,
                 value=(date_min, date_max))
@@ -59,13 +69,21 @@ if not sel:
     st.info('Select at least one asset to display charts.')
     st.stop()
 
-view = prices.loc[(prices.index >= str(rng[0])) & (prices.index <= str(rng[1])), sel]
+view = prices.loc[(prices.index.date >= rng[0]) & (prices.index.date <= rng[1]), sel]
+if len(view) < 2:
+    st.info('Choose a date range containing at least two trading days.')
+    st.stop()
 st.plotly_chart(viz.price_chart(view, sel), width='stretch')
 
 rets = compute_returns(view)['log']
 c1, c2 = st.columns(2)
 with c1:
-    st.metric('Assets up on latest day', f"{int((q.set_index('Ticker').loc[sel, 'Change %'] > 0).sum())} / {len(sel)}")
+    if quotes_payload is not None:
+        latest = q.set_index('Ticker').reindex(sel)['Change %']
+        st.metric('Assets up on latest session',
+                  f"{int((latest > 0).sum())} / {int(latest.notna().sum())}")
+    else:
+        st.metric('Assets selected', str(len(sel)))
 with c2:
     ann_vol = rets.std() * (252 ** 0.5)
     st.write('**Annualised volatility (selected window)**')
@@ -76,7 +94,6 @@ st.plotly_chart(viz.correlation_heatmap(rets.corr(),
                                         'Correlation — selected window'),
                 width='stretch')
 
-# trend summary
 st.subheader('Market trend summary')
 trend = pd.DataFrame({
     'Ann. return (window)': rets.mean() * 252,

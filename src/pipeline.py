@@ -1,16 +1,9 @@
 """
 Reusable pipeline for the GWP3 model — Environment A (academic validation).
 
-Runs the exact original methodology once and caches the result in memory:
-1. baseline max-Sharpe MVO (sample covariance, bounds (0, 0.15))
-2. Ledoit-Wolf denoising diagnostics + denoised portfolio
-3. K-Medoids clustering (K=4) + pure cluster portfolio
-4. combination portfolio (Denoise -> Cluster -> MVO)
-5. rolling walk-forward backtest (W=126, S=21)
-6. full metric tables for train and OOS periods
-
-Static reference figures from the submitted report are kept in config and
-never mixed with freshly computed outputs.
+The assignment's fixed windows are validated by date and observation count before
+optimization, so an incomplete Yahoo Finance response cannot silently produce
+misleading portfolio outputs.
 """
 from __future__ import annotations
 
@@ -30,8 +23,8 @@ _RESULT_CACHE: dict = {}
 
 def build_full_result(force_refresh: bool = False,
                       run_backtest: bool = True) -> dict:
-    """Run the entire GWP3 model on freshly downloaded data and cache it."""
-    key = hashlib.md5(f'full|{run_backtest}'.encode(),
+    """Run the full model on validated downloaded data and cache the result."""
+    key = hashlib.md5(f'full-v2|{run_backtest}'.encode(),
                       usedforsecurity=False).hexdigest()
     if not force_refresh and key in _RESULT_CACHE:
         return _RESULT_CACHE[key]
@@ -39,18 +32,37 @@ def build_full_result(force_refresh: bool = False,
     hist = data_loader.fetch_price_history(
         TICKERS, config.TRAIN_START, config.TEST_END, force_refresh=force_refresh)
     prices = data_validation.clean_prices(hist['prices'], TICKERS)
+    if prices.empty:
+        raise data_loader.DataFetchError(
+            'No complete price rows were returned for the academic period. '
+            'Retry after the data provider recovers.')
     returns = data_validation.compute_returns(prices)
     log_ret = returns['log']
     periods = data_validation.split_periods(log_ret)
     train_ret, test_ret = periods['train'], periods['test']
 
-    if len(train_ret) < 60 or len(test_ret) < 5:
+    missing = [ticker for ticker in TICKERS
+               if ticker not in prices or prices[ticker].notna().sum() < 300]
+    if missing:
         raise data_loader.DataFetchError(
-            'Downloaded data does not cover the academic train/test windows '
-            '(need Jan 2024 - Jul 2025). The provider may have returned '
-            'incomplete data — please retry.')
+            'Historical coverage is incomplete for: ' + ', '.join(missing) +
+            '. Yahoo Finance may have returned partial data; retry later.')
+    if len(train_ret) < 300 or len(test_ret) < 15:
+        train_range = (f"{train_ret.index.min().date()}–{train_ret.index.max().date()}"
+                       if len(train_ret) else 'no training dates')
+        test_range = (f"{test_ret.index.min().date()}–{test_ret.index.max().date()}"
+                      if len(test_ret) else 'no test dates')
+        raise data_loader.DataFetchError(
+            'The downloaded history does not adequately cover the fixed academic '
+            f'windows (training: {train_range}, {len(train_ret)} days; '
+            f'July 2025 test: {test_range}, {len(test_ret)} days). '
+            'Check that Yahoo Finance is reachable and retry.')
 
     validation = data_validation.validate_data(prices, log_ret)
+    if not validation['ok']:
+        raise data_loader.DataFetchError(
+            'Downloaded prices failed data-integrity checks. Retry later; '
+            'incomplete or inconsistent market data is not used for optimization.')
 
     # ---- Step 1: baseline MVO -------------------------------------------
     mu = train_ret.mean().values * config.TRADING_DAYS
@@ -68,8 +80,7 @@ def build_full_result(force_refresh: bool = False,
     clust_w = cl['weights']
 
     # ---- Step 3: combination ---------------------------------------------
-    cl_ret, intra_w = clustering.cluster_return_series(
-        train_ret, cl['labels'], TICKERS)
+    _, intra_w = clustering.cluster_return_series(train_ret, cl['labels'], TICKERS)
     combo = combination_portfolio(train_ret, TICKERS, cl['labels'],
                                   config.N_CLUSTERS, intra_w)
 
@@ -86,10 +97,8 @@ def build_full_result(force_refresh: bool = False,
         for name, w in methods.items()
     }
 
-    # ---- Rolling backtest (training period only) ---------------------------
     bt = (backtesting.rolling_walk_forward(log_ret, TICKERS, train_end=config.TRAIN_END)
           if run_backtest else None)
-
     frontier = efficient_frontier(mu_s, S_s)
 
     result = {
@@ -139,8 +148,5 @@ def winners_per_metric(table: pd.DataFrame) -> dict:
     """Best method per metric (less-negative drawdown/CVaR counts as better)."""
     winners = {}
     for col in table.columns:
-        if col in ('Ann. Vol',):                       # lower is better
-            winners[col] = table[col].idxmin()
-        else:                                          # higher is better
-            winners[col] = table[col].idxmax()
+        winners[col] = table[col].idxmin() if col == 'Ann. Vol' else table[col].idxmax()
     return winners
