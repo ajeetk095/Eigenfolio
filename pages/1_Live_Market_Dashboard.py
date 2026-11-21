@@ -52,6 +52,22 @@ if quotes is not None:
     if quotes.get('failed_tickers'):
         st.caption('Unavailable quote symbols: ' + ', '.join(quotes['failed_tickers']))
 
+    quote_assets = st.multiselect(
+        'Assets for latest-session comparison', config.TICKERS,
+        default=config.TICKERS[:6], key='latest_quote_assets')
+    st.caption('This counts selected assets with a positive Change % in the latest available quote '
+               'snapshot. The denominator includes only selected assets with an available change; '
+               'for example, 0 / 6 means none of six assets with reported changes were up.')
+    if quote_assets:
+        quote_changes = quotes['quotes'].set_index('Ticker').reindex(quote_assets)['Change %']
+        available_changes = quote_changes.dropna()
+        st.metric('Selected assets up / with available quote change',
+                  f'{int((available_changes > 0).sum())} / {len(available_changes)}')
+        if available_changes.empty:
+            st.info('No selected assets have an available quote change in this snapshot.')
+    else:
+        st.info('Select one or more assets to compare their latest quote changes.')
+
 st.subheader('Explore history')
 left, right = st.columns([1, 2])
 with left:
@@ -83,10 +99,6 @@ returns = compute_returns(view)['log']
 if returns.empty:
     st.info('Not enough observations in the chosen range to calculate returns.')
     st.stop()
-if quotes is not None:
-    q = quotes['quotes'].set_index('Ticker').reindex(selected_tickers)
-    st.metric('Selected assets up on latest quote session',
-              f"{int((q['Change %'] > 0).sum())} / {int(q['Change %'].notna().sum())}")
 st.plotly_chart(viz.correlation_heatmap(returns.corr(), 'Correlation — selected assets and dates'),
                 width='stretch', key='market_correlation')
 
